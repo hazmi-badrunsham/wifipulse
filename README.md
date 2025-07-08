@@ -36,7 +36,6 @@
 
 ## 📸 Screenshots
 
-*Add screenshots here (e.g. UI, heatmap, speed gauge)*
 
 ## 📂 Getting Started
 

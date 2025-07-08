@@ -28,7 +28,30 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
   double uploadSpeed = 0.0;
   double gaugeValue = 0.0;
 
+  String displayName = 'Your';
+  int userXP = 0;
+  int userLevel = 1;
+  double progressPercent = 0.0;
+
   final List<String> telcoProviders = ['Maxis', 'Celcom', 'UMobile', 'Yes', 'Unifi', 'Digi', 'ONEXOX'];
+
+  Future<void> loadUserXP() async {
+    final prefs = await SharedPreferences.getInstance();
+    userXP = prefs.getInt('xp') ?? 0;
+    displayName = prefs.getString('username') ?? 'Your';
+    userLevel = (userXP ~/ 3) + 1;
+    progressPercent = (userXP % 3) / 3;
+    setState(() {});
+  }
+
+  Future<void> incrementXP() async {
+    final prefs = await SharedPreferences.getInstance();
+    userXP += 1;
+    await prefs.setInt('xp', userXP);
+    userLevel = (userXP ~/ 3) + 1;
+    progressPercent = (userXP % 3) / 3;
+    setState(() {});
+  }
 
   Future<void> scanWifiInfo() async {
     final info = NetworkInfo();
@@ -79,6 +102,8 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
     final wifiLabel = isWifiConnected ? wifiName : selectedTelco;
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString('username') ?? 'Anonymous';
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+
     try {
       await Supabase.instance.client.from('heatmap_points').insert({
         'lat': position.latitude,
@@ -86,7 +111,7 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
         'download': downloadSpeed,
         'upload': uploadSpeed,
         'wifi_name': wifiLabel,
-        'user_id': Supabase.instance.client.auth.currentUser?.id,
+        'user_id': userId,
         'username': username,
       });
 
@@ -98,6 +123,19 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
         'wifi_name': wifiLabel,
         'timestamp': DateTime.now().toIso8601String(),
       });
+
+      await incrementXP();
+
+      // Update user level to Supabase user_profiles
+      try {
+        await Supabase.instance.client.from('user_profiles').upsert({
+          'id': userId,
+          'username': username,
+          'level': userLevel,
+        }, onConflict: 'id');
+      } catch (e) {
+        debugPrint('⚠️ Failed to update user level: $e');
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Speed test saved and uploaded')),
@@ -112,76 +150,21 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
   @override
   void initState() {
     super.initState();
-   
-  }
-
-  Future<void> _checkAndShowPopup() async {
-    final prefs = await SharedPreferences.getInstance();
-    final dontShowAgain = prefs.getBool('dontShowPopup') ?? false;
-
-    if (!dontShowAgain && mounted) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          bool dontShow = false;
-          return StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: const Text('Welcome to WiFi Pulse'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Please scan WiFi info before starting the speed test to ensure accurate results',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: dontShow,
-                          onChanged: (value) {
-                            setState(() => dontShow = value ?? false);
-                          },
-                        ),
-                        const Text("Don't show again"),
-                      ],
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () async {
-                      if (dontShow) {
-                        await prefs.setBool('dontShowPopup', true);
-                      }
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('OK'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-    }
+    loadUserXP();
   }
 
   @override
   Widget build(BuildContext context) {
     final speedTest = SpeedTestProvider.of(context);
 
-  
     return Scaffold(
       appBar: AppBar(
-        title: const Text("WiFi Pulse",
-        style: TextStyle(fontWeight: FontWeight.bold)
-      ),
+        title: const Text("WiFi Pulse", style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-        
+          // Speed Gauge Card
           Card(
             color: Colors.grey[850],
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -225,9 +208,7 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
                     builder: (context, snapshot) {
                       if (snapshot.hasData && snapshot.data!.type != SpeedTestType.ping) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            setState(() => gaugeValue = snapshot.data!.speed);
-                          }
+                          setState(() => gaugeValue = snapshot.data!.speed);
                         });
                         return Text(
                           '${snapshot.data!.type.name.toUpperCase()}: ${snapshot.data!.speed.toStringAsFixed(2)} Mbps',
@@ -237,11 +218,18 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
                       return const SizedBox.shrink();
                     },
                   ),
+                  if (!isTesting && (downloadSpeed > 0 || uploadSpeed > 0)) ...[
+                    Text('Download: ${downloadSpeed.toStringAsFixed(2)} Mbps'),
+                    Text('Upload: ${uploadSpeed.toStringAsFixed(2)} Mbps'),
+                  ]
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
+
+          const SizedBox(height: 10),
+
+          // WiFi Info Card
           Card(
             color: const Color.fromARGB(255, 48, 48, 48),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -253,7 +241,7 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
                   Center(
                     child: ElevatedButton(
                       onPressed: scanWifiInfo,
-                      child: const Text('Show WiFi Info'),
+                      child: const Text('Scan WiFi Info'),
                     ),
                   ),
                   const SizedBox(height: 15),
@@ -273,6 +261,66 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
                       onChanged: (value) => setState(() => selectedTelco = value ?? ''),
                     ),
                   ],
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // Contribution Card
+          Card(
+            color: const Color.fromARGB(255, 48, 48, 48),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        "$displayName's WiFiPulse Level",
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.white70),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text("Contribution Info",
+                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                              content: const Text(
+                                "Every time you perform a speed test and upload the result, "
+                                "you earn XP.\n\n- 1 speed test = 1 XP\n- Every 3 XP = 1 Level\n\n"
+                                "Help others by contributing more tests to improve heatmap accuracy!",
+                                style: TextStyle(fontSize: 18),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text("OK"),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text("Level: $userLevel", style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: progressPercent,
+                    backgroundColor: Colors.grey[700],
+                    color: Colors.lightBlueAccent,
+                    minHeight: 8,
+                  ),
+                  const SizedBox(height: 6),
+                  Text("XP: $userXP / ${userLevel * 3}", style: const TextStyle(fontSize: 14, color: Colors.white70)),
                 ],
               ),
             ),

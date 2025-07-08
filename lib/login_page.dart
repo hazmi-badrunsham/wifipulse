@@ -49,6 +49,22 @@ class _LoginPageState extends State<LoginPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('username', name);
 
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+
+    if (user != null) {
+      // Insert or update user profile with level = 1
+      try {
+        await supabase.from('user_profiles').upsert({
+          'id': user.id,         // Supabase Auth UID
+          'username': name,
+          'level': 1             // Default starting level
+        });
+      } catch (e) {
+        debugPrint('Failed to upsert user profile: $e');
+      }
+    }
+
     _goToHome();
   }
 

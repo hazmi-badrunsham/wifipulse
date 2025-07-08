@@ -100,7 +100,9 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Speed Test History"),
+        title: const Text("Speed Test History",
+        style: TextStyle(fontWeight: FontWeight.bold)
+        ),
         actions: [
           if (entries.isNotEmpty)
             IconButton(

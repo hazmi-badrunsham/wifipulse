@@ -31,20 +31,26 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
   }
 
   Future<void> fetchUserLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) return;
+      }
+
+      Position position = await Geolocator.getCurrentPosition();
+
+      if (!mounted) return;
+      setState(() {
+        userLocation = LatLng(position.latitude, position.longitude);
+        initialCenter ??= userLocation;
+      });
+    } catch (e) {
+      debugPrint('Error getting location: $e');
     }
-
-    Position position = await Geolocator.getCurrentPosition();
-    setState(() {
-      userLocation = LatLng(position.latitude, position.longitude);
-      initialCenter ??= userLocation;
-    });
   }
 
   Future<void> fetchHeatmapData() async {
@@ -55,16 +61,15 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
           .select()
           .eq('wifi_name', 'Umi Wi-Fi 4');
 
-      final data = response as List;
+      final data = response as List<dynamic>;
 
-      // Map to store latest record per lat,lng
       final Map<String, Map<String, dynamic>> latestPerPoint = {};
 
       for (var record in data) {
         try {
-          final lat = record['lat'] as double?;
-          final lng = record['lng'] as double?;
-          final download = record['download'] as double?;
+          final lat = record['lat']?.toDouble();
+          final lng = record['lng']?.toDouble();
+          final download = record['download']?.toDouble();
           final createdStr = record['created_at'] as String?;
           final created = DateTime.tryParse(createdStr ?? '');
 
@@ -87,7 +92,6 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
         }
       }
 
-      // Clear previous data
       bluePoints.clear();
       yellowPoints.clear();
       orangePoints.clear();
@@ -112,6 +116,7 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         isLoading = false;
         if (initialCenter == null &&
@@ -121,6 +126,7 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
       });
     } catch (e) {
       debugPrint('Failed to fetch heatmap data: $e');
+      if (!mounted) return;
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to load heatmap data')),
@@ -234,5 +240,10 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }

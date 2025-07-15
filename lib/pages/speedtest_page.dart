@@ -7,8 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'main.dart';
-
 class SpeedTestPage extends StatefulWidget {
   const SpeedTestPage({super.key});
   @override
@@ -126,7 +124,6 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
 
       await incrementXP();
 
-      // Update user level to Supabase user_profiles
       try {
         await Supabase.instance.client.from('user_profiles').upsert({
           'id': userId,
@@ -151,6 +148,59 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
   void initState() {
     super.initState();
     loadUserXP();
+    _checkAndShowPopup();
+  }
+
+  Future<void> _checkAndShowPopup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dontShowAgain = prefs.getBool('dontShowPopup') ?? false;
+
+    if (!dontShowAgain && mounted) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          bool dontShow = false;
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text('Welcome to WiFiPulse'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Please scan WiFi info before starting the speed test to ensure accurate results',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: dontShow,
+                          onChanged: (value) {
+                            setState(() => dontShow = value ?? false);
+                          },
+                        ),
+                        const Text("Don't show again"),
+                      ],
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () async {
+                      if (dontShow) {
+                        await prefs.setBool('dontShowPopup', true);
+                      }
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
   }
 
   @override
@@ -164,7 +214,6 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Speed Gauge Card
           Card(
             color: Colors.grey[850],
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -226,10 +275,7 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 10),
-
-          // WiFi Info Card
           Card(
             color: const Color.fromARGB(255, 48, 48, 48),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -265,10 +311,7 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 10),
-
-          // Contribution Card
           Card(
             color: const Color.fromARGB(255, 48, 48, 48),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -320,7 +363,8 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
                     minHeight: 8,
                   ),
                   const SizedBox(height: 6),
-                  Text("XP: $userXP / ${userLevel * 3}", style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                  Text("XP: $userXP / ${userLevel * 3}",
+                      style: const TextStyle(fontSize: 14, color: Colors.white70)),
                 ],
               ),
             ),

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'speedtest_page.dart';
-import 'heatmap.dart';
-import 'history.dart';
-import 'main.dart'; // for darkBackgroundColor
-
+import '../../utils/theme.dart'; // For darkBackgroundColor
+import '../pages/speedtest_page.dart';
+import '../pages/history.dart';
+import '../pages/heatmap.dart';
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 

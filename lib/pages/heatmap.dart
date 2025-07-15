@@ -5,6 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+enum HeatmapType { iiumStudent, maxis, celcom, umobile, unifi, digi }
+
 class IIUMStudentHeatmapPage extends StatefulWidget {
   const IIUMStudentHeatmapPage({super.key});
 
@@ -23,6 +25,8 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
   LatLng? userLocation;
   bool isLoading = true;
 
+  HeatmapType selectedType = HeatmapType.iiumStudent;
+
   @override
   void initState() {
     super.initState();
@@ -31,49 +35,80 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
   }
 
   Future<void> fetchUserLocation() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) return;
-      }
-
-      Position position = await Geolocator.getCurrentPosition();
-
-      if (!mounted) return;
-      setState(() {
-        userLocation = LatLng(position.latitude, position.longitude);
-        initialCenter ??= userLocation;
-      });
-    } catch (e) {
-      debugPrint('Error getting location: $e');
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) return;
     }
+
+    Position position = await Geolocator.getCurrentPosition();
+    if (mounted) {
+    setState(() {
+    userLocation = LatLng(position.latitude, position.longitude);
+    initialCenter ??= userLocation;
+  });
+}
   }
 
   Future<void> fetchHeatmapData() async {
     try {
       final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('heatmap_points')
-          .select()
-          .eq('wifi_name', 'Umi Wi-Fi 4');
 
-      final data = response as List<dynamic>;
+      late final List<dynamic> response;
+
+      if (selectedType == HeatmapType.iiumStudent) {
+        response = await supabase
+            .from('heatmap_points')
+            .select()
+            .eq('wifi_name', '"Umi Wi-Fi 4"');
+            print("Fetched ${response.length} heatmap records for ${selectedType.name}");
+            
+      } if (selectedType == HeatmapType.maxis) {
+        response = await supabase
+            .from('heatmap_points')
+            .select()
+            .eq('wifi_name', 'Maxis');
+    
+      } if (selectedType == HeatmapType.celcom) {
+        response = await supabase
+            .from('heatmap_points')
+            .select()
+            .eq('wifi_name', 'Celcom');
+    
+      } if (selectedType == HeatmapType.umobile) {
+        response = await supabase
+            .from('heatmap_points')
+            .select()
+            .eq('wifi_name', 'Umobile');
+    
+      } if (selectedType == HeatmapType.unifi) {
+        response = await supabase
+            .from('heatmap_points')
+            .select()
+            .eq('wifi_name', 'Unifi');
+    
+      } if (selectedType == HeatmapType.digi) {
+        response = await supabase
+            .from('heatmap_points')
+            .select()
+            .eq('wifi_name', 'Digi');
+    
+      }
 
       final Map<String, Map<String, dynamic>> latestPerPoint = {};
 
-      for (var record in data) {
+      for (var record in response) {
         try {
-          final lat = record['lat']?.toDouble();
-          final lng = record['lng']?.toDouble();
-          final download = record['download']?.toDouble();
+          final lat = record['lat'] as double?;
+          final lng = record['lng'] as double?;
+          final download = record['download'] as double?;
           final createdStr = record['created_at'] as String?;
-          final created = DateTime.tryParse(createdStr ?? '');
-
-          if (lat == null || lng == null || download == null || created == null) continue;
+          if (lat == null || lng == null || download == null || createdStr == null) continue;
+          final created = DateTime.tryParse(createdStr);
+          if (created == null) continue;
 
           final key = '$lat,$lng';
           final existing = latestPerPoint[key];
@@ -116,7 +151,7 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
         }
       }
 
-      if (!mounted) return;
+      if (mounted) {
       setState(() {
         isLoading = false;
         if (initialCenter == null &&
@@ -124,9 +159,9 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
           initialCenter = (bluePoints + yellowPoints + orangePoints + redPoints + purplePoints).first.latLng;
         }
       });
+      }
     } catch (e) {
       debugPrint('Failed to fetch heatmap data: $e');
-      if (!mounted) return;
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to load heatmap data')),
@@ -139,11 +174,51 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'IIUM Student WiFi Heatmap',
+          'WiFi Pulse Heatmap',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
         actions: [
+          DropdownButton<HeatmapType>(
+            value: selectedType,
+            underline: const SizedBox(),
+            icon: const Icon(Icons.arrow_drop_down, color: Color.fromARGB(255, 255, 255, 255)),
+            items: const [
+              DropdownMenuItem(
+                value: HeatmapType.iiumStudent,
+                child: Text("IIUM WiFi", style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              ),
+              DropdownMenuItem(
+                value: HeatmapType.maxis,
+                child: Text("Maxis", style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              ),
+              DropdownMenuItem(
+                value: HeatmapType.celcom,
+                child: Text("Celcom", style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              ),
+              DropdownMenuItem(
+                value: HeatmapType.umobile,
+                child: Text("Umobile", style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              ),
+              DropdownMenuItem(
+                value: HeatmapType.unifi,
+                child: Text("Unifi", style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              ),
+              DropdownMenuItem(
+                value: HeatmapType.digi,
+                child: Text("Digi", style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  selectedType = value;
+                  isLoading = true;
+                });
+                fetchHeatmapData();
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -170,6 +245,10 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
                       TileLayer(
                         urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                         subdomains: ['a', 'b', 'c'],
+                        userAgentPackageName: 'com.example.wifipulse', // ✅ Use your actual package name
+                        additionalOptions: const {
+                            'User-Agent': 'WiFiPulse/1.0 (https://github.com/hazmi-badrunsham)', // ✅ Must include a real URL
+                      },
                       ),
                       if (userLocation != null)
                         MarkerLayer(
@@ -180,8 +259,8 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
                               height: 50,
                               child: const Icon(
                                 Icons.my_location,
-                                color: Colors.red,
-                                size: 16,
+                                color: Color.fromARGB(183, 244, 67, 54),
+                                size: 15,
                               ),
                             ),
                           ],
@@ -240,10 +319,5 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }

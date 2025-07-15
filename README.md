@@ -71,7 +71,7 @@ flutter run
 
 - **Hazmi Badrunsham**
 - **Akif Hakimi**
-GitHub: [@hazmi-badrunsham](https://github.com/hazmi-badrunsham)
+
 
 ---
 

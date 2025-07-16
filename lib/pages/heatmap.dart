@@ -20,7 +20,7 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
   final List<WeightedLatLng> orangePoints = [];
   final List<WeightedLatLng> redPoints = [];
   final List<WeightedLatLng> purplePoints = [];
-
+  
   LatLng? initialCenter;
   LatLng? userLocation;
   bool isLoading = true;

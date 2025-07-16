@@ -7,6 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../services/xp_service.dart';
+import '../services/geolocation.dart';
+import '../services/dialog_box.dart';
+
+
+
 class SpeedTestPage extends StatefulWidget {
   const SpeedTestPage({super.key});
   @override
@@ -19,6 +25,7 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
   String wifiIP = "Unknown";
   String selectedTelco = '';
   bool isWifiConnected = true;
+
   bool isTesting = false;
   bool showUploadGauge = false;
 
@@ -26,30 +33,11 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
   double uploadSpeed = 0.0;
   double gaugeValue = 0.0;
 
-  String displayName = 'Your';
-  int userXP = 0;
-  int userLevel = 1;
-  double progressPercent = 0.0;
+
 
   final List<String> telcoProviders = ['Maxis', 'Celcom', 'UMobile', 'Yes', 'Unifi', 'Digi', 'ONEXOX'];
 
-  Future<void> loadUserXP() async {
-    final prefs = await SharedPreferences.getInstance();
-    userXP = prefs.getInt('xp') ?? 0;
-    displayName = prefs.getString('username') ?? 'Your';
-    userLevel = (userXP ~/ 3) + 1;
-    progressPercent = (userXP % 3) / 3;
-    setState(() {});
-  }
-
-  Future<void> incrementXP() async {
-    final prefs = await SharedPreferences.getInstance();
-    userXP += 1;
-    await prefs.setInt('xp', userXP);
-    userLevel = (userXP ~/ 3) + 1;
-    progressPercent = (userXP % 3) / 3;
-    setState(() {});
-  }
+ 
 
   Future<void> scanWifiInfo() async {
     final info = NetworkInfo();
@@ -148,61 +136,32 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
   void initState() {
     super.initState();
     loadUserXP();
-    _checkAndShowPopup();
+    updateXPState();
+    _handleLocationPermission();
+    Future.delayed(Duration.zero, () {
+    showWelcomePopupIfNeeded(context);
+  });
   }
 
-  Future<void> _checkAndShowPopup() async {
-    final prefs = await SharedPreferences.getInstance();
-    final dontShowAgain = prefs.getBool('dontShowPopup') ?? false;
-
-    if (!dontShowAgain && mounted) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          bool dontShow = false;
-          return StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: const Text('Welcome to WiFiPulse'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Please scan WiFi info before starting the speed test to ensure accurate results',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: dontShow,
-                          onChanged: (value) {
-                            setState(() => dontShow = value ?? false);
-                          },
-                        ),
-                        const Text("Don't show again"),
-                      ],
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () async {
-                      if (dontShow) {
-                        await prefs.setBool('dontShowPopup', true);
-                      }
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('OK'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-    }
+   void updateXPState() async {
+  await loadUserXP();
+  setState(() {}); // Rebuild widget to reflect new values
   }
 
+  void addXPAndUpdateUI() async {
+  await incrementXP();
+  setState(() {}); // Rebuild to reflect new XP and level
+  }
+
+  Future<void> _handleLocationPermission() async {
+  final granted = await requestLocationPermission();
+  if (!granted && mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('📍 Location permission is required for accurate speed test mapping.')),
+    );
+  }
+}
+  
   @override
   Widget build(BuildContext context) {
     final speedTest = SpeedTestProvider.of(context);

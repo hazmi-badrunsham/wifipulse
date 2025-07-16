@@ -22,6 +22,10 @@ class _HistoryPageState extends State<HistoryPage> {
     final box = Hive.box('history');
     List<Map<String, dynamic>> data = [];
 
+    // Early exit if the widget is not mounted.
+    // This is crucial for avoiding setState after dispose.
+    if (!mounted) return;
+
     for (int i = box.length - 1; i >= 0; i--) {
       final item = Map<String, dynamic>.from(box.getAt(i));
       String locationName = item['location_name'] ?? "Unknown";
@@ -39,10 +43,12 @@ class _HistoryPageState extends State<HistoryPage> {
           locationName = reverseSearchResult.displayName ?? "Unnamed Location";
           item['location_name'] = locationName;
 
-          // Cache it to Hive
+          // Cache it to Hive. No need for setState here, as it's local to the loop.
+          // The setState at the end of the function will handle the UI update.
           await box.putAt(i, item);
         } catch (e) {
           locationName = "Failed to get location";
+          debugPrint('Error getting location for ${item['lat']}, ${item['lng']}: $e');
         }
       }
 
@@ -51,18 +57,24 @@ class _HistoryPageState extends State<HistoryPage> {
       data.add(item);
     }
 
-    setState(() {
-      entries = data;
-    });
+    // Only call setState if the widget is still mounted
+    if (mounted) {
+      setState(() {
+        entries = data;
+      });
+    }
   }
 
   Future<void> deleteEntry(int hiveIndex) async {
     final box = Hive.box('history');
     await box.deleteAt(hiveIndex);
-    await loadFromHive();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Entry deleted")),
-    );
+    // After deletion, reload the data to update the UI
+    await loadFromHive(); // loadFromHive already has the mounted check
+    if (mounted) { // Check mounted before showing SnackBar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Entry deleted")),
+      );
+    }
   }
 
   Future<void> clearHistory() async {
@@ -87,12 +99,17 @@ class _HistoryPageState extends State<HistoryPage> {
     if (confirmed == true) {
       final box = Hive.box('history');
       await box.clear();
-      setState(() {
-        entries.clear();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("History cleared")),
-      );
+      // Only call setState if the widget is still mounted
+      if (mounted) {
+        setState(() {
+          entries.clear();
+        });
+      }
+      if (mounted) { // Check mounted before showing SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("History cleared")),
+        );
+      }
     }
   }
 
@@ -100,14 +117,16 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Speed Test History",
-        style: TextStyle(fontWeight: FontWeight.bold)
+        title: const Text(
+          "Speed Test History",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white), // Added color
         ),
+        backgroundColor: Colors.transparent, // Added for consistency
         actions: [
           if (entries.isNotEmpty)
             IconButton(
               onPressed: clearHistory,
-              icon: const Icon(Icons.delete_forever),
+              icon: const Icon(Icons.delete_forever, color: Colors.white), // Added color
               tooltip: "Reset All History",
             ),
         ],
@@ -120,6 +139,17 @@ class _HistoryPageState extends State<HistoryPage> {
               itemCount: entries.length,
               itemBuilder: (context, index) {
                 final item = entries[index];
+                // Check if 'timestamp' is a valid DateTime string and format it
+                String formattedTimestamp = "N/A";
+                try {
+                  if (item['timestamp'] != null) {
+                    final dateTime = DateTime.parse(item['timestamp']);
+                    formattedTimestamp = "${dateTime.toLocal().day}/${dateTime.toLocal().month}/${dateTime.toLocal().year} ${dateTime.toLocal().hour.toString().padLeft(2, '0')}:${dateTime.toLocal().minute.toString().padLeft(2, '0')}";
+                  }
+                } catch (e) {
+                  debugPrint("Error parsing timestamp: $e");
+                }
+
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   color: Colors.grey[850],
@@ -137,9 +167,8 @@ class _HistoryPageState extends State<HistoryPage> {
                             style: const TextStyle(color: Colors.white)),
                         Text("WiFi/Telco: ${item['wifi_name']}",
                             style: const TextStyle(color: Colors.white70)),
-                        if (item['timestamp'] != null)
-                          Text("Time: ${item['timestamp']}",
-                              style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        Text("Time: $formattedTimestamp", // Use formatted timestamp
+                            style: const TextStyle(color: Colors.white38, fontSize: 12)),
                       ],
                     ),
                     trailing: IconButton(

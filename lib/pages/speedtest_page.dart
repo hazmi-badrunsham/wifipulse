@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../utils/theme.dart';
+import '../services/report_service.dart';
 import '../services/xp_service.dart';
 import '../services/geolocation.dart';
 import '../services/dialog_box.dart';
@@ -229,7 +231,23 @@ class _SpeedTestPageState extends State<SpeedTestPage> {
                   if (!isTesting && (downloadSpeed > 0 || uploadSpeed > 0)) ...[
                     Text('Download: ${downloadSpeed.toStringAsFixed(2)} Mbps'),
                     Text('Upload: ${uploadSpeed.toStringAsFixed(2)} Mbps'),
-                  ]
+                  ],
+                  const SizedBox(height: 0),
+
+                  ElevatedButton.icon(
+                  icon: const Icon(Icons.flag, size: 18),
+                  style: reportButtonStyle,
+                  label: const Text('Report'),
+                  onPressed: () {
+                    showReportDialog(
+                      context: context,
+                      wifiName: wifiName,
+                      downloadSpeed: downloadSpeed,
+                      uploadSpeed: uploadSpeed,
+                    );
+                  },
+                ),
+
                 ],
               ),
             ),

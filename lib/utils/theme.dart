@@ -24,7 +24,6 @@ ButtonStyle reportButtonStyle = ElevatedButton.styleFrom(
   minimumSize: const Size(100, 30),
   backgroundColor: Colors.redAccent,
   foregroundColor: Colors.white,
-  elevation: 4,
   padding: const EdgeInsets.symmetric(horizontal: 12),
   shape: RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(10),

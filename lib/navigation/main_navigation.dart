@@ -25,7 +25,7 @@ class _MainNavigationState extends State<MainNavigation> {
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Colors.lightBlueAccent,
+        selectedItemColor: const Color.fromARGB(255, 64, 196, 255),
         unselectedItemColor: Colors.white54,
         backgroundColor: darkBackgroundColor,
         onTap: (index) => setState(() => _currentIndex = index),

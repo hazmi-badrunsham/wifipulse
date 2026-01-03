@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../navigation/main_navigation.dart';
 
 class LoginPage extends StatefulWidget {
@@ -35,6 +34,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   @override
   void dispose() {
     _animationController?.dispose();
+    _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -89,6 +89,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   }
 
   void _goToHome() {
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const MainNavigation()),
@@ -102,6 +103,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
+      // Automatically pushes content up when keyboard appears
+      resizeToAvoidBottomInset: true, 
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(
@@ -109,195 +112,173 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 strokeWidth: 2,
               ),
             )
-          : FadeTransition(
-              opacity: _fadeAnimation ?? const AlwaysStoppedAnimation(1.0),
-              child: SafeArea(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: screenWidth * 0.08,
-                    vertical: screenHeight * 0.05,
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Logo with subtle glow effect
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.1),
-                              blurRadius: 35,
-                              spreadRadius: 5,
-                            ),
-                          ],
+          : GestureDetector(
+              // Closes keyboard if user taps on the background
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: FadeTransition(
+                opacity: _fadeAnimation ?? const AlwaysStoppedAnimation(1.0),
+                child: SafeArea(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.08,
+                          vertical: 20,
                         ),
-                        child: Image.asset(
-                          'assets/icons/logo.png',
-                          height: screenHeight * 0.12,
-                        ),
-                      ),
-                      
-                      SizedBox(height: screenHeight * 0.06),
-                      
-                      // Welcome text
-                      ShaderMask(
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [Colors.white, Colors.white70],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ).createShader(bounds),
-                        child: const Text(
-                          'Welcome to WiFi Pulse',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w300,
-                            letterSpacing: 1.2,
-                            color: Colors.white,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            // Forces content to fill the screen height for centering
+                            minHeight: constraints.maxHeight - 40, 
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      
-                      SizedBox(height: screenHeight * 0.02),
-                      
-                      // Subtitle
-                      Text(
-                        'Enter your display name',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white.withOpacity(0.6),
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: 0.5,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      
-                      SizedBox(height: screenHeight * 0.08),
-                      
-                      // Input field with modern styling
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _focusNode.hasFocus 
-                                ? const Color(0xFF266991)
-                                : const Color(0xFF266991).withOpacity(0.5),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          onChanged: (value) => setState(() {}),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFF1A1A1A),
-                            hintText: 'Your name',
-                            hintStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                      SizedBox(height: screenHeight * 0.05),
-                      
-                      // Continue button with animation
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: double.infinity,
-                        height: 54,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: _controller.text.trim().isNotEmpty
-                              ? LinearGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.9),
-                                    Colors.white.withOpacity(0.8),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                )
-                              : LinearGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.3),
-                                    Colors.white.withOpacity(0.2),
-                                  ],
-                                ),
-                          boxShadow: _controller.text.trim().isNotEmpty
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.white.withOpacity(0.2),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _controller.text.trim().isNotEmpty && !_isButtonPressed
-                                ? _saveUsernameAndContinue
-                                : null,
-                            borderRadius: BorderRadius.circular(16),
-                            child: Center(
-                              child: _isButtonPressed
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.black,
-                                        strokeWidth: 2,
+                          child: IntrinsicHeight(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // Logo
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.white.withOpacity(0.1),
+                                        blurRadius: 35,
+                                        spreadRadius: 5,
                                       ),
-                                    )
-                                  : Text(
-                                      'Continue',
-                                      style: TextStyle(
-                                        color: _controller.text.trim().isNotEmpty
-                                            ? Colors.black
-                                            : Colors.white.withOpacity(0.5),
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.5,
+                                    ],
+                                  ),
+                                  child: Image.asset(
+                                    'assets/icons/logo.png',
+                                    height: screenHeight * 0.12,
+                                  ),
+                                ),
+                                
+                                SizedBox(height: screenHeight * 0.05),
+                                
+                                // Welcome Text
+                                ShaderMask(
+                                  shaderCallback: (bounds) => const LinearGradient(
+                                    colors: [Colors.white, Colors.white70],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  ).createShader(bounds),
+                                  child: const Text(
+                                    'Welcome to WiFi Pulse',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w300,
+                                      letterSpacing: 1.2,
+                                      color: Colors.white,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 12),
+                                
+                                // Subtitle
+                                Text(
+                                  'Enter your display name',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: 0.5,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                
+                                SizedBox(height: screenHeight * 0.06),
+                                
+                                // Input Field
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: _focusNode.hasFocus 
+                                          ? const Color(0xFF266991)
+                                          : const Color(0xFF266991).withOpacity(0.3),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: TextField(
+                                    controller: _controller,
+                                    focusNode: _focusNode,
+                                    onChanged: (value) => setState(() {}),
+                                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: const Color(0xFF1A1A1A),
+                                      hintText: 'Your name',
+                                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                    ),
+                                  ),
+                                ),
+                                
+                                SizedBox(height: screenHeight * 0.04),
+                                
+                                // Continue Button
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: double.infinity,
+                                  height: 54,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    gradient: _controller.text.trim().isNotEmpty
+                                        ? LinearGradient(
+                                            colors: [
+                                              Colors.white.withOpacity(0.9),
+                                              Colors.white.withOpacity(0.8),
+                                            ],
+                                          )
+                                        : LinearGradient(
+                                            colors: [
+                                              Colors.white.withOpacity(0.2),
+                                              Colors.white.withOpacity(0.1),
+                                            ],
+                                          ),
+                                    boxShadow: _controller.text.trim().isNotEmpty
+                                        ? [BoxShadow(color: Colors.white.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))]
+                                        : [],
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: _controller.text.trim().isNotEmpty && !_isButtonPressed
+                                          ? _saveUsernameAndContinue
+                                          : null,
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Center(
+                                        child: _isButtonPressed
+                                            ? const SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+                                              )
+                                            : Text(
+                                                'Continue',
+                                                style: TextStyle(
+                                                  color: _controller.text.trim().isNotEmpty ? Colors.black : Colors.white38,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
                                       ),
                                     ),
+                                  ),
+                                ),
+                                // Bottom padding to ensure the button is visible above keyboard
+                                const SizedBox(height: 20),
+                              ],
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               ),

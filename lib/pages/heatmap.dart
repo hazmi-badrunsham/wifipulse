@@ -22,6 +22,8 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
   final List<WeightedLatLng> orangePoints = [];
   final List<WeightedLatLng> redPoints = [];
   final List<WeightedLatLng> purplePoints = [];
+String aiInsightType = '';
+int aiConfidenceScore = 0;
 
   LatLng? initialCenter;
   LatLng? userLocation;
@@ -83,37 +85,65 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
   }
 
   Future<void> fetchAIInsight() async {
-    if (userLocation == null) {
-      debugPrint('⚠️ Skipping AI insight: userLocation is null');
-      return;
+  if (userLocation == null) {
+    debugPrint('⚠️ Skipping AI insight: userLocation is null');
+    return;
+  }
+  
+  setState(() => isAiLoading = true);
+  debugPrint('🧠 Fetching AI insight for ${selectedType.name} at ${userLocation!.latitude}, ${userLocation!.longitude}');
+
+  try {
+    // Determine wifi name based on selected type
+    String wifiName = '';
+    if (selectedType == HeatmapType.iiumStudent) {
+      wifiName = 'IIUM-Student';
+    } else if (selectedType == HeatmapType.iiumWifi) {
+      wifiName = 'IIUM-WiFi';
+    } else {
+      wifiName = selectedType.name[0].toUpperCase() + selectedType.name.substring(1);
     }
-    setState(() => isAiLoading = true);
-    debugPrint('🧠 Fetching AI insight for ${selectedType.name} at ${userLocation!.latitude}, ${userLocation!.longitude}');
 
-    try {
-      final response = await Supabase.instance.client.rpc('get_wifi_insight', params: {
-        'target_lat': userLocation!.latitude,
-        'target_lng': userLocation!.longitude,
-        'target_wifi': selectedType == HeatmapType.iiumStudent ? '"IIUM-Student"' : selectedType.name,
+    // Call the v2 function with correct parameters
+    final response = await Supabase.instance.client.rpc(
+      'get_wifi_insight_v2',
+      params: {
+        'target_wifi': wifiName,
+        'user_lat': userLocation!.latitude,
+        'user_lon': userLocation!.longitude,
+        'radius_meters': 50, // Search within 50m radius
+      },
+    );
+
+    if (mounted && response.isNotEmpty) {
+      final data = response[0];
+      setState(() {
+        aiInsight = data['insight_text'] ?? "No patterns detected yet.";
+        aiInsightType = data['insight_type'] ?? '';
+        aiConfidenceScore = data['confidence_score'] ?? 0;
+        isAiLoading = false;
       });
-
-      if (mounted) {
-        setState(() {
-          aiInsight = response.isNotEmpty ? response[0]['insight_text'] : "No patterns detected yet.";
-          isAiLoading = false;
-        });
-        debugPrint('💡 AI Insight received: $aiInsight');
-      }
-    } catch (e) {
-      debugPrint('❌ AI RPC Error: $e');
-      if (mounted) {
-        setState(() {
-          aiInsight = "Collect more data to unlock AI insights!";
-          isAiLoading = false;
-        });
-      }
+      debugPrint('💡 AI Insight: $aiInsight (Type: $aiInsightType, Confidence: $aiConfidenceScore%)');
+    } else {
+      setState(() {
+        aiInsight = "No data available for this area yet.";
+        aiInsightType = 'insufficient_data';
+        aiConfidenceScore = 0;
+        isAiLoading = false;
+      });
+    }
+  } catch (e) {
+    debugPrint('❌ AI RPC Error: $e');
+    if (mounted) {
+      setState(() {
+        aiInsight = "Collect more data to unlock AI insights!";
+        aiInsightType = 'error';
+        aiConfidenceScore = 0;
+        isAiLoading = false;
+      });
     }
   }
+}
 
   Future<void> fetchHeatmapData() async {
     debugPrint('📥 Fetching heatmap data for type: $selectedType');
@@ -129,9 +159,10 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
 
       final Map<String, Map<String, dynamic>> latestPerPoint = {};
       for (var record in response) {
-        final lat = record['lat'] as double?;
-        final lng = record['lng'] as double?;
-        final download = record['download'] as double?;
+        final lat = (record['lat'] as num?)?.toDouble();
+final lng = (record['lng'] as num?)?.toDouble();
+final download = (record['download'] as num?)?.toDouble();
+
         final createdStr = record['created_at'] as String?;
 
         if (lat == null || lng == null || download == null || createdStr == null) continue;
@@ -172,7 +203,7 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
     debugPrint('🧱 Building UI...');
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WiFi Pulse Heatmap', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Heatmap', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         actions: [
           DropdownButton<HeatmapType>(
@@ -218,12 +249,17 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
                         ],
                       ),
                       // 🔹 AI Insight Overlay
-                      Positioned(
-                        top: 10,
-                        left: 0,
-                        right: 0,
-                        child: PulseInsightCard(insight: aiInsight, isLoading: isAiLoading),
-                      ),
+                     Positioned(
+  top: 10,
+  left: 0,
+  right: 0,
+  child: NetworkInsightCard(
+    insight: aiInsight,
+    insightType: aiInsightType,
+    confidenceScore: aiConfidenceScore,
+    isLoading: isAiLoading,
+  ),
+),
                       if (userLocation != null)
                         Positioned(
                           bottom: 16,
@@ -264,8 +300,8 @@ class _IIUMStudentHeatmapPageState extends State<IIUMStudentHeatmapPage> {
     return HeatMapLayer(
       heatMapDataSource: InMemoryHeatMapDataSource(data: points),
       heatMapOptions: HeatMapOptions(
-        radius: 12.0,
-        layerOpacity: 0.5,
+        radius: 15.0,
+        layerOpacity: 0.7,
         gradient: {1.0: MaterialColor(color.value, {500: color, 900: color})},
       ),
     );
